@@ -43,6 +43,9 @@ def get_training_keyboard(training_list, completed):
     return InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("⚡ /start вызван")
+    logging.info("⚡ /start вызван")
+    await update.message.reply_text("Привет! Я твой бот. Введи /training, /training_a или /training_b")
     await update.message.reply_text("Привет! Я твой бот. Введи /training, /training_a или /training_b")
 
 async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
