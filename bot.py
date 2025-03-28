@@ -9,7 +9,6 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
-from telegram.ext import defaults
 from telegram.ext import AIORateLimiter
 from telegram.ext import Dispatcher
 
