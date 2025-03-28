@@ -1,13 +1,12 @@
-
 import logging
 import os
+from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from apscheduler.schedulers.background import BackgroundScheduler
 
-# Получаем токен из переменной окружения
 TOKEN = os.getenv("TOKEN")
 
-# Включаем логгирование
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -15,7 +14,7 @@ logging.basicConfig(
 
 # Команды
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Я твой бот по восстановлению. Введи /stretch или /offday.")
+    await update.message.reply_text("Привет! Я твой бот по восстановлению. Введи /stretch, /offday или /training.")
 
 async def stretch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -42,16 +41,45 @@ async def offday(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❌ Кофеин после 14:00"
     )
 
-# Основной запуск
+async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    day = datetime.now().weekday()
+    if day == 0:
+        await update.message.reply_text(
+            "🏋️‍♂️ <b>Тренировка A</b>\n"
+            "- Подтягивания / тяга блока — 3x8–10\n"
+            "- Болгарские приседы — 3x8\n"
+            "- Жим гантелей лёжа — 3x10\n"
+            "- Гиперэкстензия — 3x15\n"
+            "- Тяга гантели в наклоне — 3x10", parse_mode='HTML')
+    elif day == 3:
+        await update.message.reply_text(
+            "🏋️‍♂️ <b>Тренировка B</b>\n"
+            "- Жим гантелей стоя — 3x8\n"
+            "- Гоблет-присед — 3x10\n"
+            "- Ягодичный мостик — 3x15\n"
+            "- Подъём ног в висе — 3x15\n"
+            "- Интервальный вело 30/30 — 10 мин", parse_mode='HTML')
+    else:
+        await update.message.reply_text("📅 Сегодня не силовой день. Отдыхай или нажми /offday")
+
+async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(chat_id=context.job.chat_id,
+                                   text="🧘‍♂️ Напоминание: сделай вечернюю растяжку! ➡ /stretch")
+
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("stretch", stretch))
     application.add_handler(CommandHandler("offday", offday))
+    application.add_handler(CommandHandler("training", training))
 
+    scheduler = BackgroundScheduler(timezone="Europe/Moscow")
+    scheduler.add_job(send_reminder, 'cron', hour=21, minute=0, args=[application])
+    scheduler.start()
+
+    print("Бот запущен с напоминанием и тренировками.")
     application.run_polling()
 
 if __name__ == "__main__":
-    print("Бот запущен.")
     main()
