@@ -1,13 +1,18 @@
 
 import os
 import logging
+from fastapi import FastAPI, Request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
     CallbackQueryHandler,
     ContextTypes,
 )
+from telegram.ext import defaults
+from telegram.ext import AIORateLimiter
+from telegram.ext import Dispatcher
+
 from datetime import datetime
 
 TOKEN = os.getenv("TOKEN")
@@ -30,10 +35,11 @@ TRAINING_B = [
     "Интервальный вело 30/30 — 10 мин",
 ]
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI()
+bot_app = None
 
 def get_training_keyboard(training_list, completed):
     keyboard = []
@@ -43,9 +49,7 @@ def get_training_keyboard(training_list, completed):
     return InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("⚡ /start вызван")
-    logging.info("⚡ /start вызван")
-    await update.message.reply_text("Привет! Я твой бот. Введи /training, /training_a или /training_b")
+    logger.info("⚡ /start вызван")
     await update.message.reply_text("Привет! Я твой бот. Введи /training, /training_a или /training_b")
 
 async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -92,25 +96,28 @@ async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT
     else:
         await query.edit_message_reply_markup(reply_markup=keyboard)
 
-# ЗАПУСК Webhook без конфликтов event loop
-def main():
-    app = (
-        ApplicationBuilder()
+@app.on_event("startup")
+async def startup():
+    global bot_app
+    bot_app = (
+        Application.builder()
         .token(TOKEN)
         .build()
     )
+    bot_app.add_handler(CommandHandler("start", start))
+    bot_app.add_handler(CommandHandler("training", training))
+    bot_app.add_handler(CommandHandler("training_a", training_a))
+    bot_app.add_handler(CommandHandler("training_b", training_b))
+    bot_app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("training", training))
-    app.add_handler(CommandHandler("training_a", training_a))
-    app.add_handler(CommandHandler("training_b", training_b))
-    app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
+    await bot_app.initialize()
+    await bot_app.start()
+    await bot_app.bot.set_webhook(f"{WEBHOOK_DOMAIN}/webhook")
+    logger.info("🚀 Webhook установлен и бот запущен")
 
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=f"{WEBHOOK_DOMAIN}/webhook",
-    )
-
-if __name__ == "__main__":
-    main()
+@app.post("/webhook")
+async def handle_webhook(request: Request):
+    update_data = await request.json()
+    update = Update.de_json(update_data, bot_app.bot)
+    await bot_app.process_update(update)
+    return {"status": "ok"}
