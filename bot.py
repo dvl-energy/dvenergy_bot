@@ -70,7 +70,16 @@ def get_training_keyboard(training_list, completed):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("⚡ /start вызван")
-    await update.message.reply_text("Привет! Я твой бот. Введи /training, /training_a или /training_b")
+    await update.message.reply_text(
+        "Привет! Я твой бот для энергии и тренировок 💪\n\n"
+        "Вот что ты можешь:\n"
+        "/training — выбрать тренировку по дню\n"
+        "/training_a — силовая тренировка A\n"
+        "/training_b — силовая тренировка B\n"
+        "/stretch — вечерняя растяжка 🧘‍♂️\n"
+        "/offday — ритуалы восстановления 🌿\n"
+        "/log — записать вес и повторения ✍️"
+    )
 
 async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = datetime.now().weekday()
