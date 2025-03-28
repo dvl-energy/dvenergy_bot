@@ -1,6 +1,6 @@
 
-import logging
 import os
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -89,7 +89,8 @@ async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT
     else:
         await query.edit_message_reply_markup(reply_markup=keyboard)
 
-async def main():
+# ЗАПУСК Webhook без конфликтов event loop
+def main():
     app = (
         ApplicationBuilder()
         .token(TOKEN)
@@ -102,12 +103,11 @@ async def main():
     app.add_handler(CommandHandler("training_b", training_b))
     app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
 
-    await app.run_webhook(
+    app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url=f"{WEBHOOK_DOMAIN}/webhook",
     )
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
