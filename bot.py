@@ -4,20 +4,31 @@ import logging
 from fastapi import FastAPI, Request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application,
+    ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
     ContextTypes,
 )
-from telegram.ext import AIORateLimiter
-from telegram.ext import Dispatcher
-
 from datetime import datetime
 
+# Config
 TOKEN = os.getenv("TOKEN")
 WEBHOOK_DOMAIN = os.getenv("WEBHOOK_DOMAIN", "https://your-app-name.onrender.com")
-PORT = int(os.environ.get("PORT", 8443))
+PORT = int(os.environ.get("PORT", 10000))
 
+# Логирование
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# FastAPI и Telegram Application
+app = FastAPI()
+bot_app = (
+    ApplicationBuilder()
+    .token(TOKEN)
+    .build()
+)
+
+# Упражнения
 TRAINING_A = [
     "Подтягивания / тяга блока — 3x8–10",
     "Болгарские приседы — 3x8",
@@ -34,12 +45,7 @@ TRAINING_B = [
     "Интервальный вело 30/30 — 10 мин",
 ]
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-app = FastAPI()
-bot_app = None
-
+# Генерация клавиатуры
 def get_training_keyboard(training_list, completed):
     keyboard = []
     for i, item in enumerate(training_list):
@@ -47,6 +53,7 @@ def get_training_keyboard(training_list, completed):
         keyboard.append([InlineKeyboardButton(label, callback_data=f"training_{i}")])
     return InlineKeyboardMarkup(keyboard)
 
+# Команды
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("⚡ /start вызван")
     await update.message.reply_text("Привет! Я твой бот. Введи /training, /training_a или /training_b")
@@ -86,7 +93,6 @@ async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT
         completed.add(index)
 
     context.user_data["completed"] = completed
-
     training_list = TRAINING_A if training_type == "A" else TRAINING_B
     keyboard = get_training_keyboard(training_list, completed)
 
@@ -95,14 +101,10 @@ async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT
     else:
         await query.edit_message_reply_markup(reply_markup=keyboard)
 
+# FastAPI Startup
 @app.on_event("startup")
 async def startup():
-    global bot_app
-    bot_app = (
-        Application.builder()
-        .token(TOKEN)
-        .build()
-    )
+    logger.info("🚀 Запуск Telegram Webhook")
     bot_app.add_handler(CommandHandler("start", start))
     bot_app.add_handler(CommandHandler("training", training))
     bot_app.add_handler(CommandHandler("training_a", training_a))
@@ -112,11 +114,11 @@ async def startup():
     await bot_app.initialize()
     await bot_app.start()
     await bot_app.bot.set_webhook(f"{WEBHOOK_DOMAIN}/webhook")
-    logger.info("🚀 Webhook установлен и бот запущен")
 
+# Webhook Endpoint
 @app.post("/webhook")
-async def handle_webhook(request: Request):
-    update_data = await request.json()
-    update = Update.de_json(update_data, bot_app.bot)
+async def process_webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, bot_app.bot)
     await bot_app.process_update(update)
-    return {"status": "ok"}
+    return {"ok": True}
