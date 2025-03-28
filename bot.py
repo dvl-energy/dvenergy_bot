@@ -9,7 +9,6 @@ from telegram.ext import (
     ContextTypes,
 )
 from fastapi import FastAPI
-from telegram.ext.webhook import WebhookServer
 
 from datetime import datetime
 
