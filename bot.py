@@ -11,60 +11,84 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Список шагов растяжки
-STRETCH_STEPS = [
-    "1. Дыхание — 2 мин",
-    "2. Шея — 10x / 20 сек",
-    "3. Скрутка лёжа — 2x30 сек",
-    "4. Кошка-корова — 10 раз",
-    "5. Ягодицы + грушевидная — 30 сек/сторона",
-    "6. Наклон к ногам — 30 сек",
-    "7. Ноги на стене + дыхание — 3 мин"
+# Программы тренировок
+TRAINING_A = [
+    "Подтягивания / тяга блока — 3x8–10",
+    "Болгарские приседы — 3x8",
+    "Жим гантелей лёжа — 3x10",
+    "Гиперэкстензия — 3x15",
+    "Тяга гантели в наклоне — 3x10"
 ]
+
+TRAINING_B = [
+    "Жим гантелей стоя — 3x8",
+    "Гоблет-присед — 3x10",
+    "Ягодичный мостик — 3x15",
+    "Подъём ног в висе — 3x15",
+    "Интервальный вело 30/30 — 10 мин"
+]
+
+# Генерация чеклиста
+def get_training_keyboard(training_list, completed):
+    keyboard = []
+    for i, item in enumerate(training_list):
+        label = f"✅ {item}" if i in completed else f"⬜ {item}"
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"training_{i}")])
+    return InlineKeyboardMarkup(keyboard)
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Привет! Я твой бот по восстановлению. Введи /stretch, /offday или /training.")
 
-# Команда /stretch с чеклистом
-async def stretch(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton(f"⬜ {step}", callback_data=f"stretch_{i}")]
-        for i, step in enumerate(STRETCH_STEPS)
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("🧘‍♂️ Вечерняя растяжка (отмечай выполненные):", reply_markup=reply_markup)
+# Команда /training
+async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    day = datetime.now().weekday()
+    if day == 0:
+        context.user_data["training_type"] = "A"
+        context.user_data["completed"] = set()
+        keyboard = get_training_keyboard(TRAINING_A, set())
+        await update.message.reply_text("🏋️‍♂️ Тренировка A. Отмечай выполненные:", reply_markup=keyboard)
+    elif day == 3:
+        context.user_data["training_type"] = "B"
+        context.user_data["completed"] = set()
+        keyboard = get_training_keyboard(TRAINING_B, set())
+        await update.message.reply_text("🏋️‍♂️ Тренировка B. Отмечай выполненные:", reply_markup=keyboard)
+    else:
+        await update.message.reply_text("📅 Сегодня не силовой день. Отдыхай или нажми /offday")
 
-# Обработка кнопок чеклиста
-async def handle_stretch_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Обработка кнопок тренировки
+async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     index = int(query.data.split("_")[1])
 
-    # Обновляем состояние кнопок
-    keyboard = []
-    for i, step in enumerate(STRETCH_STEPS):
-        if i == index:
-            label = f"✅ {step}"
-        else:
-            if "✅" in query.message.reply_markup.inline_keyboard[i][0].text:
-                label = query.message.reply_markup.inline_keyboard[i][0].text
-            else:
-                label = f"⬜ {step}"
-        keyboard.append([InlineKeyboardButton(label, callback_data=f"stretch_{i}")])
+    training_type = context.user_data.get("training_type")
+    completed = context.user_data.get("completed", set())
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_reply_markup(reply_markup=reply_markup)
+    if index in completed:
+        completed.remove(index)
+    else:
+        completed.add(index)
+
+    context.user_data["completed"] = completed
+
+    training_list = TRAINING_A if training_type == "A" else TRAINING_B
+    keyboard = get_training_keyboard(training_list, completed)
+
+    if len(completed) == len(training_list):
+        await query.edit_message_text("✅ Тренировка завершена! Красавчик 💪")
+    else:
+        await query.edit_message_reply_markup(reply_markup=keyboard)
 
 # Запуск
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("stretch", stretch))
-    app.add_handler(CallbackQueryHandler(handle_stretch_callback, pattern="^stretch_"))
+    app.add_handler(CommandHandler("training", training))
+    app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
 
-    print("Бот запущен с интерактивным чеклистом для растяжки.")
+    print("Бот с тренировкой запущен.")
     app.run_polling()
 
 if __name__ == "__main__":
