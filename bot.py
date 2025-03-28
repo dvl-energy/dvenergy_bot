@@ -1,9 +1,8 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, time
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from apscheduler.schedulers.background import BackgroundScheduler
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackContext
 
 TOKEN = os.getenv("TOKEN")
 
@@ -62,11 +61,12 @@ async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📅 Сегодня не силовой день. Отдыхай или нажми /offday")
 
-async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
+async def send_evening_reminder(context: CallbackContext):
     await context.bot.send_message(chat_id=context.job.chat_id,
                                    text="🧘‍♂️ Напоминание: сделай вечернюю растяжку! ➡ /stretch")
 
-def main():
+# Запуск
+async def main():
     application = ApplicationBuilder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -74,12 +74,25 @@ def main():
     application.add_handler(CommandHandler("offday", offday))
     application.add_handler(CommandHandler("training", training))
 
-    scheduler = BackgroundScheduler(timezone="Europe/Moscow")
-    scheduler.add_job(send_reminder, 'cron', hour=21, minute=0, args=[application])
-    scheduler.start()
+    # Планирование напоминания на 21:00 по МСК
+    moscow_utc_offset = 3  # Moscow = UTC+3
+    now_utc = datetime.utcnow()
+    now_msk = now_utc + timedelta(hours=moscow_utc_offset)
+    reminder_time = time(21, 0)
+    delta = datetime.combine(now_msk.date(), reminder_time) - now_msk
+    if delta.total_seconds() < 0:
+        delta += timedelta(days=1)
 
-    print("Бот запущен с напоминанием и тренировками.")
-    application.run_polling()
+    application.job_queue.run_repeating(
+        send_evening_reminder,
+        interval=86400,
+        first=delta,
+        chat_id=os.getenv("CHAT_ID")  # ты можешь временно заменить это на свой chat_id
+    )
+
+    print("Бот запущен.")
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
