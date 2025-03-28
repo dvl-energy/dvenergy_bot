@@ -1,14 +1,25 @@
+
 import logging
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
+from fastapi import FastAPI
+from telegram.ext.webhook import WebhookServer
+
 from datetime import datetime
 
 TOKEN = os.getenv("TOKEN")
+WEBHOOK_DOMAIN = os.getenv("WEBHOOK_DOMAIN", "https://your-app-name.onrender.com")
+PORT = int(os.environ.get("PORT", 8443))
 
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
 )
 
 TRAINING_A = [
@@ -16,7 +27,7 @@ TRAINING_A = [
     "Болгарские приседы — 3x8",
     "Жим гантелей лёжа — 3x10",
     "Гиперэкстензия — 3x15",
-    "Тяга гантели в наклоне — 3x10"
+    "Тяга гантели в наклоне — 3x10",
 ]
 
 TRAINING_B = [
@@ -24,7 +35,7 @@ TRAINING_B = [
     "Гоблет-присед — 3x10",
     "Ягодичный мостик — 3x15",
     "Подъём ног в висе — 3x15",
-    "Интервальный вело 30/30 — 10 мин"
+    "Интервальный вело 30/30 — 10 мин",
 ]
 
 def get_training_keyboard(training_list, completed):
@@ -34,9 +45,8 @@ def get_training_keyboard(training_list, completed):
         keyboard.append([InlineKeyboardButton(label, callback_data=f"training_{i}")])
     return InlineKeyboardMarkup(keyboard)
 
-# Команды
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Я твой бот по восстановлению. Введи /stretch, /offday или /training.")
+    await update.message.reply_text("Привет! Я твой бот. Введи /training, /training_a или /training_b")
 
 async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day = datetime.now().weekday()
@@ -82,18 +92,33 @@ async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT
     else:
         await query.edit_message_reply_markup(reply_markup=keyboard)
 
-# Запуск
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+fastapi_app = FastAPI()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("training", training))
-    app.add_handler(CommandHandler("training_a", training_a))
-    app.add_handler(CommandHandler("training_b", training_b))
-    app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
+async def main():
+    application = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .webhook(
+            path="/webhook",
+            listen="0.0.0.0",
+            port=PORT,
+            url=f"{WEBHOOK_DOMAIN}/webhook",
+        )
+        .build()
+    )
 
-    print("Бот с тренировками запущен.")
-    app.run_polling()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("training", training))
+    application.add_handler(CommandHandler("training_a", training_a))
+    application.add_handler(CommandHandler("training_b", training_b))
+    application.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
+
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    await application.idle()
+
+import asyncio
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
