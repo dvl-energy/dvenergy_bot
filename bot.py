@@ -106,7 +106,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/training_b — силовая тренировка B\n"
         "/stretch — вечерняя растяжка 🧘‍♂️\n"
         "/offday — ритуалы восстановления 🌿\n"
-        "/log — записать вес и повторения ✍️"
+        "/log — записать вес и повторения ✍️\n"
         "/week — план на неделю 📆"
     )
 
