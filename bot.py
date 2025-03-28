@@ -1,4 +1,3 @@
-
 import os
 import logging
 from fastapi import FastAPI, Request
@@ -7,19 +6,22 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
-    MessageHandler,
     ContextTypes,
-    filters,
+    MessageHandler,
+    filters
 )
 from datetime import datetime
 
+# Config
 TOKEN = os.getenv("TOKEN")
 WEBHOOK_DOMAIN = os.getenv("WEBHOOK_DOMAIN", "https://your-app-name.onrender.com")
 PORT = int(os.environ.get("PORT", 10000))
 
+# Логирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# FastAPI и Telegram Application
 app = FastAPI()
 bot_app = (
     ApplicationBuilder()
@@ -27,6 +29,7 @@ bot_app = (
     .build()
 )
 
+# Упражнения
 TRAINING_A = [
     "Подтягивания / тяга блока — 3x8–10",
     "Болгарские приседы — 3x8",
@@ -59,8 +62,9 @@ OFFDAY_LIST = [
     "Планы и цели на завтра — 3 мин",
 ]
 
-user_logs = {}
+user_logs = {}  # сохраняем веса/повторы
 
+# Генерация клавиатуры
 def get_training_keyboard(training_list, completed):
     keyboard = []
     for i, item in enumerate(training_list):
@@ -68,6 +72,7 @@ def get_training_keyboard(training_list, completed):
         keyboard.append([InlineKeyboardButton(label, callback_data=f"training_{i}")])
     return InlineKeyboardMarkup(keyboard)
 
+# Команды
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("⚡ /start вызван")
     await update.message.reply_text(
@@ -93,12 +98,14 @@ async def training(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def training_a(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["training_type"] = "A"
     context.user_data["completed"] = set()
+    context.user_data["logging_index"] = None
     keyboard = get_training_keyboard(TRAINING_A, set())
     await update.message.reply_text("🏋️‍♂️ Тренировка A. Отмечай выполненные:", reply_markup=keyboard)
 
 async def training_b(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["training_type"] = "B"
     context.user_data["completed"] = set()
+    context.user_data["logging_index"] = None
     keyboard = get_training_keyboard(TRAINING_B, set())
     await update.message.reply_text("🏋️‍♂️ Тренировка B. Отмечай выполненные:", reply_markup=keyboard)
 
@@ -106,37 +113,63 @@ async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT
     query = update.callback_query
     await query.answer()
     index = int(query.data.split("_")[1])
+
     training_type = context.user_data.get("training_type")
     completed = context.user_data.get("completed", set())
 
     if index in completed:
         completed.remove(index)
+        context.user_data["logging_index"] = None
     else:
         completed.add(index)
+        context.user_data["logging_index"] = index
 
     context.user_data["completed"] = completed
     training_list = TRAINING_A if training_type == "A" else TRAINING_B
     keyboard = get_training_keyboard(training_list, completed)
 
-    if len(completed) == len(training_list):
-        await query.edit_message_text("✅ Тренировка завершена! Красавчик 💪")
-    else:
-        await query.edit_message_reply_markup(reply_markup=keyboard)
+    await query.edit_message_reply_markup(reply_markup=keyboard)
 
+    if index in completed:
+        exercise = training_list[index]
+        await query.message.reply_text(f"✍️ Введи вес и повторы для: {exercise}")
+
+# Обработка сообщения — ввод веса/повторов сразу после нажатия
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    msg = update.message.text
+    log_index = context.user_data.get("logging_index")
+    training_type = context.user_data.get("training_type")
+    if log_index is not None and training_type:
+        exercise = (TRAINING_A if training_type == "A" else TRAINING_B)[log_index]
+        user_logs.setdefault(user_id, []).append(f"{exercise}: {msg}")
+        await update.message.reply_text(f"✅ Записано: {exercise} — {msg}")
+        context.user_data["logging_index"] = None
+        return
+
+    if context.user_data.get("logging"):
+        user_logs.setdefault(user_id, []).append(msg)
+        await update.message.reply_text(f"✅ Записано: {msg}")
+        context.user_data["logging"] = False
+
+# /stretch
 async def stretch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(f"⬜ {item}", callback_data=f"stretch_{i}")] for i, item in enumerate(STRETCH_LIST)]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("🧘 Вечерняя растяжка:", reply_markup=reply_markup)
 
+# /offday
 async def offday(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(f"⬜ {item}", callback_data=f"offday_{i}")] for i, item in enumerate(OFFDAY_LIST)]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("🌿 Полный OFF-день. Отмечай выполненное:", reply_markup=reply_markup)
 
+# универсальная обработка чеклистов
 async def handle_checklist_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
+
     if data.startswith("stretch"):
         items = STRETCH_LIST
         prefix = "stretch"
@@ -159,17 +192,10 @@ async def handle_checklist_callback(update: Update, context: ContextTypes.DEFAUL
     keyboard = [[InlineKeyboardButton(f"✅ {item}" if i in done else f"⬜ {item}", callback_data=f"{prefix}_{i}")] for i, item in enumerate(items)]
     await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
 
+# /log
 async def log_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✍️ Напиши упражнение и результат (пример: Жим гантелей 24x10)")
     context.user_data["logging"] = True
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get("logging"):
-        user_id = update.effective_user.id
-        msg = update.message.text
-        user_logs.setdefault(user_id, []).append(msg)
-        await update.message.reply_text(f"✅ Записано: {msg}")
-        context.user_data["logging"] = False
 
 @app.on_event("startup")
 async def startup():
@@ -178,10 +204,10 @@ async def startup():
     bot_app.add_handler(CommandHandler("training", training))
     bot_app.add_handler(CommandHandler("training_a", training_a))
     bot_app.add_handler(CommandHandler("training_b", training_b))
-    bot_app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
     bot_app.add_handler(CommandHandler("stretch", stretch))
     bot_app.add_handler(CommandHandler("offday", offday))
     bot_app.add_handler(CommandHandler("log", log_command))
+    bot_app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
     bot_app.add_handler(CallbackQueryHandler(handle_checklist_callback, pattern="^(stretch|offday)_"))
     bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
