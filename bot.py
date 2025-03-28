@@ -8,18 +8,11 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
-from fastapi import FastAPI
-
 from datetime import datetime
 
 TOKEN = os.getenv("TOKEN")
 WEBHOOK_DOMAIN = os.getenv("WEBHOOK_DOMAIN", "https://your-app-name.onrender.com")
 PORT = int(os.environ.get("PORT", 8443))
-
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
 
 TRAINING_A = [
     "Подтягивания / тяга блока — 3x8–10",
@@ -36,6 +29,11 @@ TRAINING_B = [
     "Подъём ног в висе — 3x15",
     "Интервальный вело 30/30 — 10 мин",
 ]
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
 
 def get_training_keyboard(training_list, completed):
     keyboard = []
@@ -91,33 +89,25 @@ async def handle_training_callback(update: Update, context: ContextTypes.DEFAULT
     else:
         await query.edit_message_reply_markup(reply_markup=keyboard)
 
-fastapi_app = FastAPI()
-
 async def main():
-    application = (
+    app = (
         ApplicationBuilder()
         .token(TOKEN)
-        .webhook(
-            path="/webhook",
-            listen="0.0.0.0",
-            port=PORT,
-            url=f"{WEBHOOK_DOMAIN}/webhook",
-        )
         .build()
     )
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("training", training))
-    application.add_handler(CommandHandler("training_a", training_a))
-    application.add_handler(CommandHandler("training_b", training_b))
-    application.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("training", training))
+    app.add_handler(CommandHandler("training_a", training_a))
+    app.add_handler(CommandHandler("training_b", training_b))
+    app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
 
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
-    await application.idle()
-
-import asyncio
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"{WEBHOOK_DOMAIN}/webhook",
+    )
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
