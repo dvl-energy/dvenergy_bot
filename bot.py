@@ -29,6 +29,27 @@ bot_app = (
     .build()
 )
 
+# /week — план на неделю
+async def week(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🗓️ План на неделю\n\n"
+        "Понедельник:\n"
+        "  Утро: 🏋️‍♂️ Силовая A\n  Вечер: 🧘 Растяжка\n\n"
+        "Вторник:\n"
+        "  Утро: ❌ Отдых / восстановление\n  Вечер: 🧘 Растяжка\n\n"
+        "Среда:\n"
+        "  Утро: 🥊 Тайский бокс\n  Вечер: 🧘 Растяжка\n\n"
+        "Четверг:\n"
+        "  Утро: 🏋️‍♂️ Силовая B\n  Вечер: 🧘 Растяжка\n\n"
+        "Пятница:\n"
+        "  Утро: ❌ Нет тренировки\n  Вечер: 🧘 Растяжка\n\n"
+        "Суббота:\n"
+        "  Утро: 🏃‍♂️ Бег 5–7 км\n  Вечер: ❌ или сауна\n\n"
+        "Воскресенье:\n"
+        "  Утро: 🌿 OFF / по самочувствию\n  Вечер: 🧘 Лёгкая растяжка\n"
+    )
+
+
 # Упражнения
 TRAINING_A = [
     "Подтягивания / тяга блока — 3x8–10",
@@ -209,6 +230,7 @@ async def startup():
     bot_app.add_handler(CommandHandler("stretch", stretch))
     bot_app.add_handler(CommandHandler("offday", offday))
     bot_app.add_handler(CommandHandler("log", log_command))
+    bot_app.add_handler(CommandHandler("week", week))
     bot_app.add_handler(CallbackQueryHandler(handle_training_callback, pattern="^training_"))
     bot_app.add_handler(CallbackQueryHandler(handle_checklist_callback, pattern="^(stretch|offday)_"))
     bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
