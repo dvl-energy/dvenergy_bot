@@ -99,7 +99,7 @@ def get_training_keyboard(training_list, completed):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("⚡ /start вызван")
     await update.message.reply_text(
-        "Привет! Я твой бот для энергии и тренировок 💪\n\n"
+        "Привет, бро! Наша цель: Здоровье 💪 и Энергия 🔋\n\n"
         "Вот что ты можешь:\n"
         "/training — выбрать тренировку по дню\n"
         "/training_a — силовая тренировка A\n"
